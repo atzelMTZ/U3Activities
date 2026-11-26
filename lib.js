@@ -1,0 +1,10 @@
+import mongoose from 'mongoose';
+const { Schema, models, model } = mongoose;
+let p; export const db = () => (p ||= mongoose.connect(process.env.MONGODB_URI));
+const S = (n, s) => models[n] || model(n, new Schema(s, { timestamps: true }));
+export const User = S('User', { email: { type: String, unique: true }, name: String, hash: String, role: { type: String, default: 'user' }, reset: { h: String, exp: Date } });
+export const Session = S('Session', { uid: String, device: String, ip: String });
+export const Topic = S('Topic', { title: String, summary: String, theme: String, image: String, hasImage: Boolean, by: String });
+export const Fav = S('Fav', { uid: String, tid: String, kind: String });
+export const Post = S('Post', { tid: String, uid: String, name: String, parent: String, text: String });
+export const Setting = S('Setting', { key: String, val: String });
