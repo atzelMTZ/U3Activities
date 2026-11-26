@@ -25,7 +25,7 @@ export default function App() {
     return () => { removeEventListener('hashchange', s); removeEventListener('lo', lo); };
   }, []);
   const [path, qs] = h.split('?'), q = new URLSearchParams(qs || ''), P = path.split('/').filter(Boolean);
-  const guarded = ['account', 'admin', 'edit'].includes(P[0]);
+  const guarded = ['account', 'admin', 'edit', 'saved'].includes(P[0]);
   useEffect(() => { if (ok && guarded && !me) location.hash = '/login?next=' + encodeURIComponent(h); }, [ok, guarded, me, h]);
   useEffect(() => { if (P[0] !== 'topic') setTh('default'); }, [h]);
   const t = T[th] || T.default;
@@ -44,13 +44,13 @@ export default function App() {
           <span>{me.name} ({me.role})</span>
           {['investigator', 'admin'].includes(me.role) && <button style={btn} onClick={go('/edit/new')}>+ Topic</button>}
           {me.role === 'admin' && <button style={btn} onClick={go('/admin')}>Admin</button>}
-          <button style={btn} onClick={go('/account')}>Account</button><button style={btn} onClick={logout}>Logout</button>
+          <button style={btn} onClick={go('/saved')}>Saved</button><button style={btn} onClick={go('/account')}>Account</button><button style={btn} onClick={logout}>Logout</button>
         </>) : <button style={btn} onClick={go('/login')}>Login</button>}
       </header>
       <main style={{ maxWidth: 820, margin: '0 auto', padding: 20 }}>
         {P[0] === 'login' || P[0] === 'register' || P[0] === 'forgot' || P[0] === 'reset' ? <Auth {...ctx} mode={P[0]} q={q} /> :
           P[0] === 'topic' ? <Topic {...ctx} id={P[1]} /> :
-          P[0] === 'edit' && me ? <Edit {...ctx} id={P[1]} /> :
+          P[0] === 'edit' && me ? (['investigator', 'admin'].includes(me.role) ? <Edit {...ctx} id={P[1]} /> : <p>403 Forbidden: investigators only</p>) : P[0] === 'saved' && me ? <Saved {...ctx} /> :
           P[0] === 'account' && me ? <Account {...ctx} /> :
           P[0] === 'admin' && me ? <Admin {...ctx} /> : !guarded ? <Home {...ctx} /> : null}
       </main>
@@ -102,7 +102,7 @@ function Topic({ id, me, card, btn, inp, setTh }) {
       <h3>Discussion</h3>
       {roots.map(r => (<div key={r._id} style={card}><b>{r.name}</b>: {r.text}
         {posts.filter(c => c.parent === r._id).map(c => <div key={c._id} style={{ marginLeft: 20 }}><b>{c.name}</b>: {c.text}</div>)}
-        <button style={btn} onClick={() => post(r._id)}>Reply with box text</button></div>))}
+        <Reply btn={btn} inp={inp} send={async t => { try { await api(`topics/${id}/posts`, { m: 'POST', b: { text: t, parent: r._id } }); load(); } catch (x) { se(x.message); } }} /></div>))}
       <textarea style={inp} rows={3} value={txt} onChange={ev => sx(ev.target.value)} placeholder="Write a comment or start a thread" />
       <button style={btn} onClick={() => post(null)}>New thread</button><Err e={e} /></>}
   </>);
@@ -139,4 +139,16 @@ function Admin({ me, card, btn, inp }) {
     <select value={u.role} onChange={async ev => { await api('admin/users/' + u.id, { m: 'PUT', b: { role: ev.target.value } }); L(); }}><option>user</option><option>investigator</option><option>admin</option></select>
     <button style={btn} onClick={async () => { try { await api('admin/users/' + u.id, { m: 'DELETE' }); L(); } catch (x) { se(x.message); } }}>Delete</button></div>)}<Err e={e} /></div>
     <div style={card}><h2>Platform settings</h2><input style={inp} placeholder="Site name" onChange={ev => sn(ev.target.value)} /><button style={btn} onClick={() => api('admin/settings', { m: 'PUT', b: { siteName: n } })}>Save</button></div></>);
+}
+
+function Reply({ send, btn, inp }) {
+  const [t, st] = useState('');
+  return (<div><input style={inp} placeholder="Reply to this thread" value={t} onChange={e => st(e.target.value)} /><button style={btn} onClick={() => { if (t) { send(t); st(''); } }}>Reply</button></div>);
+}
+function Saved({ card, btn }) {
+  const [f, sf] = useState([]), [ts, st] = useState([]);
+  const L = () => { api('favs').then(sf).catch(() => {}); api('topics').then(st).catch(() => {}); };
+  useEffect(() => { L(); }, []);
+  const sec = (k, title) => (<div style={card}><h2>{title}</h2>{f.filter(x => x.kind === k).map(x => { const t = ts.find(y => y._id === x.tid); return t ? (<div key={x._id}><a href={'#/topic/' + t._id}>{t.title}</a><button style={btn} onClick={async () => { await api('favs', { m: 'POST', b: { tid: x.tid, kind: k } }); L(); }}>Remove</button></div>) : null; })}</div>);
+  return (<>{sec('favorite', '★ Favorites')}{sec('bookmark', '🔖 Bookmarks')}</>);
 }
